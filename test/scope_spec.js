@@ -20,7 +20,7 @@ describe('digest', function() {
     // expect(listenerFn).toHaveBeenCalled();
   });
 
-  it('calls the watch function with the scope as the argument', function(){
+  it('calls the watch function with the scope as the argument', function() {
     var watchFn = jasmine.createSpy();
     var listenerFn = function(){};
     scope.$watch(watchFn, listenerFn);
@@ -28,16 +28,28 @@ describe('digest', function() {
     expect(watchFn).toHaveBeenCalledWith(scope);
   });
 
-  it('calls the listener function when the watched value changes', () => {
+  it('calls the listener function when the watched value changes', function() {
     scope.someValue = 'a';
     scope.counter = 0;
      
     scope.$watch(
-      (scope) => scope.someValue,
-      (newValue, oldValue, scope) => scope.counter++
+      function(scope) { return scope.someValue; },
+      function(newValue, oldValue, scope) { return scope.counter++; }
     );
 
     expect(scope.counter).toBe(0);
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.someValue = 'b';
+    expect(scope.counter).toBe(1);
+
+    scope.$digest();
+    expect(scope.counter).toBe(2);
 
   });
 });
