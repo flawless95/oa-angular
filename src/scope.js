@@ -4,11 +4,15 @@ function Scope() {
   // store all watchers that have been regitered
   this.$$watchers = [];
 }
+  // to fix an issue, if newValue === undefined, it will not access follow code
+function initVatchVal() {}
 
 Scope.prototype.$watch = function(watchFn, listenerFn) {
   var watcher = {
     watchFn: watchFn,
-    listenerFn: listenerFn
+    listenerFn: listenerFn,
+    // last prop only used to compare with newValue
+    last: initVatchVal
   };
   this.$$watchers.push(watcher);
 };

@@ -52,4 +52,16 @@ describe('digest', function() {
     expect(scope.counter).toBe(2);
 
   });
+
+  it('calls listener when watch value is first undefined', function () {
+    scope.counter = 0;
+
+    scope.$watch(
+      function() { return scope.someValue; },
+      function(newValue, oldValue, scope) { return scope.counter++; }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
 });
