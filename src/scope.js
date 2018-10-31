@@ -5,14 +5,14 @@ function Scope() {
   this.$$watchers = [];
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
-function initVatchVal() {}
+function initWatchVal() {}
 
 Scope.prototype.$watch = function(watchFn, listenerFn) {
   var watcher = {
     watchFn: watchFn,
     listenerFn: listenerFn,
     // last prop only used to compare with newValue
-    last: initVatchVal
+    last: initWatchVal
   };
   this.$$watchers.push(watcher);
 };
@@ -24,7 +24,7 @@ Scope.prototype.$digest = function() {
     oldValue = watcher.last;
     if (newValue !== oldValue) {
       watcher.last = newValue;
-      watcher.listenerFn(newValue, oldValue, self);
+      watcher.listenerFn(newValue, (oldValue === initWatchVal ? newValue : oldValue), self);
     }
   });
 };
