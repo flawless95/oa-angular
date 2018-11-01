@@ -17,7 +17,8 @@ describe('digest', function() {
     var listenerFn = jasmine.createSpy();
     
     scope.$watch(watchFn, listenerFn);
-    // expect(listenerFn).toHaveBeenCalled();
+    scope.$digest();
+    expect(listenerFn).toHaveBeenCalled();
   });
 
   it('calls the watch function with the scope as the argument', function() {
@@ -76,5 +77,64 @@ describe('digest', function() {
     
     scope.$digest();
     expect(oldValueGiven).toBe(123);
+  });
+
+  it('may have watchers that omit the listener function', function() {
+    var watchFn = jasmine.createSpy().and.returnValue('something');
+    scope.$watch(watchFn);
+
+    scope.$digest();
+    expect(watchFn).toHaveBeenCalled();
+  });
+  // watch的value是在另一个listener里面发生变化
+  // 并且是 后面的watcher 影响前面的watcher
+  it('triggers chained watchers in the same digest', function() {
+    scope.name= 'jane';
+
+    scope.$watch(
+      function() { return scope.nameUpper; },
+      function(newValue, oldValue, scope) {
+        if (newValue) {
+          scope.initial = newValue.substring(0,1) + '.';
+        }
+      }
+    );
+
+    scope.$watch(
+      function() { return scope.name; },
+      function(newValue, oldValue, scope) {
+        if (newValue) {
+          scope.nameUpper = newValue.toUpperCase();
+        }
+      }
+    );
+
+    scope.$digest();
+    expect(scope.initial).toBe('J.');
+
+    scope.name = 'Bob';
+    scope.$digest();
+    expect(scope.initial).toBe('B.');
+  });
+
+  it('gives up on the watches after 10 iteration', function() {
+    scope.counterA = 0;
+    scope.counterB = 0;
+
+    scope.$watch(
+      function(scope) { return scope.counterA; },
+      function(newValue, oldValue, scope) {
+        scope.counterB++;
+      }
+    );
+    scope.$watch(
+      function(scope) { return scope.counterB; },
+      function(newValue, oldValue, scope) {
+        scope.counterA++;
+      }
+    );
+    
+    expect(function() { scope.$digest(); }).toThrow();
+
   });
 });
