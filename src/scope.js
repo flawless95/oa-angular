@@ -17,6 +17,9 @@ Scope.prototype.$watch = function(watchFn, listenerFn) {
     last: initWatchVal
   };
   this.$$watchers.push(watcher);
+  // when first invoke $watch, 
+  // maybe in listenerFn of this $watch internal also has a $watch
+  this.$$lastDirtyWatch = null;
 };
 
 Scope.prototype.$$digestOnce = function() {
