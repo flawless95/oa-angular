@@ -3,6 +3,8 @@ var _ = require('lodash');
 function Scope() {
   // store all watchers that have been regitered
   this.$$watchers = [];
+  // record last dirty watch to make iterate loop optimization
+  this.$$lastDirtyWatch = null;
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
@@ -24,9 +26,12 @@ Scope.prototype.$$digestOnce = function() {
     newValue = watcher.watchFn(self);
     oldValue = watcher.last;
     if (newValue !== oldValue) {
+      self.$$lastDirtyWatch = watcher;
       watcher.last = newValue;
       watcher.listenerFn(newValue, (oldValue === initWatchVal ? newValue : oldValue), self);
       dirty = true;
+    } else if (self.$$lastDirtyWatch === watcher) {
+      return false;
     }
   });
   return dirty;
@@ -35,6 +40,7 @@ Scope.prototype.$$digestOnce = function() {
 Scope.prototype.$digest = function() {
   var ttl = 10;
   var dirty;
+  this.$$lastDirtyWatch = null;
   do {
     dirty = this.$$digestOnce();
     if (dirty && !(ttl--)){
