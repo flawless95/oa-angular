@@ -1,3 +1,4 @@
+var _ = require('lodash');
 var Scope = require('../src/scope');
 
 describe('Scope', function() {
@@ -145,12 +146,12 @@ describe('digest', function() {
     _.times(100, function(i){
       scope.$watch(
         function(scope) {
-          watchExecution ++
+          watchExecution ++;
           return scope.array[i];
         },
         function(newValue, oldValue, scope) {}
-      )
-    })
+      );
+    });
 
     scope.$digest();
     expect(watchExecution).toBe(200);
@@ -178,5 +179,25 @@ describe('digest', function() {
 
     scope.$digest();
     expect(scope.counter).toBe(1);
+  });
+
+  it('compares based on value if enable', function() {
+    scope.aValue = [1, 2, 3];
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      },
+      true
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.aValue.push(4);
+    scope.$digest();
+    expect(scope.counter).toBe(2);
   });
 });

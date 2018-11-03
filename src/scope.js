@@ -9,17 +9,26 @@ function Scope() {
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
 
-Scope.prototype.$watch = function(watchFn, listenerFn) {
+Scope.prototype.$watch = function(watchFn, listenerFn, valueEq) {
   var watcher = {
     watchFn: watchFn,
     listenerFn: listenerFn || function() {},
     // last prop only used to compare with newValue
-    last: initWatchVal
+    last: initWatchVal,
+    valueEq: !!valueEq
   };
   this.$$watchers.push(watcher);
   // when first invoke $watch, 
   // maybe in listenerFn of this $watch internal also has a $watch
   this.$$lastDirtyWatch = null;
+};
+
+Scope.prototype.$$areEqual = function(newValue, oldValue, valueEq) {
+  if(valueEq) {
+    return _.isEqual(newValue, oldValue);
+  } else {
+    return newValue === oldValue;
+  }
 };
 
 Scope.prototype.$$digestOnce = function() {
@@ -28,9 +37,9 @@ Scope.prototype.$$digestOnce = function() {
   _.forEach(this.$$watchers, function(watcher) {
     newValue = watcher.watchFn(self);
     oldValue = watcher.last;
-    if (newValue !== oldValue) {
+    if (!self.$$areEqual(newValue, oldValue, watcher.valueEq)) {
       self.$$lastDirtyWatch = watcher;
-      watcher.last = newValue;
+      watcher.last = (watcher.valueEq ? _.cloneDeep(newValue) : newValue);
       watcher.listenerFn(newValue, (oldValue === initWatchVal ? newValue : oldValue), self);
       dirty = true;
     } else if (self.$$lastDirtyWatch === watcher) {
