@@ -5,6 +5,8 @@ function Scope() {
   this.$$watchers = [];
   // record last dirty watch to make iterate loop optimization
   this.$$lastDirtyWatch = null;
+
+  this.$$asyncQueue = [];
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
@@ -69,6 +71,10 @@ Scope.prototype.$digest = function() {
   var dirty;
   this.$$lastDirtyWatch = null;
   do {
+    while (this.$$asyncQueue.length){
+      var asyncTask = this.$$asyncQueue.shift();
+      asyncTask.scope.$eval(asyncTask.expression);
+    }
     dirty = this.$$digestOnce();
     if (dirty && !(ttl--)){
       throw '10 digest iterations reached';
@@ -76,8 +82,22 @@ Scope.prototype.$digest = function() {
   } while(dirty);
 };
 
+// 费这么大劲添加$eval 目的是 实现scope调用
 Scope.prototype.$eval = function(expr, locals) {
   return expr(this, locals);
 }
+
+// $apply 可以让外部的方法也可以获取并操作scope
+Scope.prototype.$apply = function(expr) {
+  try {
+    return this.$eval(expr);
+  } finally {
+    this.$digest();
+  }
+};
+
+Scope.prototype.$evalAsync = function(expr) {
+  this.$$asyncQueue.push({scope: this, expression: expr})
+};
 
 module.exports = Scope;
