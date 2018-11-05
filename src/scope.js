@@ -76,10 +76,10 @@ Scope.prototype.$digest = function() {
       asyncTask.scope.$eval(asyncTask.expression);
     }
     dirty = this.$$digestOnce();
-    if (dirty && !(ttl--)){
+    if ((dirty || this.$$asyncQueue.length) && !(ttl--)){
       throw '10 digest iterations reached';
     }
-  } while(dirty);
+  } while(dirty || this.$$asyncQueue.length);
 };
 
 // 费这么大劲添加$eval 目的是 实现scope调用
