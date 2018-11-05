@@ -1,3 +1,4 @@
+var _ = require('lodash');
 var Scope = require('../src/scope');
 
 describe('Scope', function() {
@@ -5,6 +6,12 @@ describe('Scope', function() {
     var scope = new Scope();
   });
 });
+/* 
+              ============================================
+                                Chapter 1 
+                        dirty-check $watch $digest
+              ============================================
+*/
 
 describe('digest', function() {
   var scope;
@@ -12,6 +19,7 @@ describe('digest', function() {
     scope = new Scope();
   });
 
+  // 第一次调用 $digest 的时候 需要调用一下 listenerFn
   it('call the listener function of a watch on the first $digest', function() {
     var watchFn = function() {return 'wat';};
     var listenerFn = jasmine.createSpy();
@@ -21,6 +29,7 @@ describe('digest', function() {
     expect(listenerFn).toHaveBeenCalled();
   });
 
+  // 调用 watchFn 的时候要把 scope作为参数传入
   it('calls the watch function with the scope as the argument', function() {
     var watchFn = jasmine.createSpy();
     var listenerFn = function(){};
@@ -29,6 +38,7 @@ describe('digest', function() {
     expect(watchFn).toHaveBeenCalledWith(scope);
   });
 
+  // 当watched value 改变的时候 调用listenerFn
   it('calls the listener function when the watched value changes', function() {
     scope.someValue = 'a';
     scope.counter = 0;
@@ -54,6 +64,7 @@ describe('digest', function() {
 
   });
 
+  // 当 watch value 第一次传入undefined的时候  调用listenerFn
   it('calls listener when watch value is first undefined', function () {
     scope.counter = 0;
 
@@ -66,6 +77,7 @@ describe('digest', function() {
     expect(scope.counter).toBe(1);
   });
 
+  // 第一次调用listenerFn的时候 把 newValue作为 oldValue
   it('calls listener with new value as old value the first time', function () {
     scope.someValue = 123;
     var oldValueGiven;
@@ -79,6 +91,7 @@ describe('digest', function() {
     expect(oldValueGiven).toBe(123);
   });
 
+  // 没有传入listenerFn 的情况处理
   it('may have watchers that omit the listener function', function() {
     var watchFn = jasmine.createSpy().and.returnValue('something');
     scope.$watch(watchFn);
@@ -86,7 +99,9 @@ describe('digest', function() {
     scope.$digest();
     expect(watchFn).toHaveBeenCalled();
   });
-  // watch的value是在另一个listener里面发生变化
+
+  // Title : 在同一个digest里面链式的触发watchers 
+  // detail: watch的value是在另一个listener里面发生变化
   // 并且是 后面的watcher 影响前面的watcher
   it('triggers chained watchers in the same digest', function() {
     scope.name= 'jane';
@@ -117,6 +132,8 @@ describe('digest', function() {
     expect(scope.initial).toBe('B.');
   });
 
+  // TTL : time to live
+  // 多次iterate watchers时，要停止iterate
   it('gives up on the watches after 10 iteration', function() {
     scope.counterA = 0;
     scope.counterB = 0;
@@ -137,4 +154,375 @@ describe('digest', function() {
     expect(function() { scope.$digest(); }).toThrow();
 
   });
+
+  // Title: 当 watch clean的时候 要停止 digest
+  // performance: iterate encounter lastDirtyWatcher. stop iterate!
+  it('ends the digest when the last watch is clean', function() {
+    scope.array = _.range(100);
+    var watchExecution = 0;
+
+    _.times(100, function(i){
+      scope.$watch(
+        function(scope) {
+          watchExecution ++;
+          return scope.array[i];
+        },
+        function(newValue, oldValue, scope) {}
+      );
+    });
+
+    scope.$digest();
+    expect(watchExecution).toBe(200);
+
+    scope.array[0] = 420;
+    scope.$digest();
+    expect(watchExecution).toBe(301);
+  });
+
+  // Title: 当有watcher 没有执行的时候，不要停止digest
+  // detail: 在一个 watch 的 watcherFn 内部 添加一个 watch,
+  // 由于我们在 listenerFn 里加了 $$lastDirtyWatch,
+  // 所以在一个 $watch initialize的时候 也要 initializs $$lastDirtyWatch
+  it('does not end digest so that new watcher are not run', function() {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.$watch(
+          function(scope) { return scope.aValue; },
+          function(newValue, oldValue, scope) {
+            scope.counter++;
+          }
+        );
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
+
+  //（a === a） = false 的情况, 引用数据类型的 deep compare
+  it('compares based on value if enable', function() {
+    scope.aValue = [1, 2, 3];
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      },
+      true
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.aValue.push(4);
+    scope.$digest();
+    expect(scope.counter).toBe(2);
+  });
+
+  // NaN === NaN 要注意处理
+  it('correctly handles NaNs', function() {
+    scope.number = 0/0;
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.number; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
+
+  // 任何function报错 也要继续
+  it('catches exceptions in watch functions and continues', function() {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+    
+    scope.$watch(
+      function(scope) { throw 'Error'; },
+      function(newValue, oldValue, scope){}
+    );
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
+
+  // listenerFn 抛错的情况
+  it('catches exceptions in listener functions and continues', function() {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        throw 'Error';
+      }
+    );
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
+
+  // detroy 一个 watch
+  it('allows destroying a $watch with a removal function', function() {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+
+    var destroyWatch = scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.aValue = 'def';
+    scope.$digest();
+    expect(scope.counter).toBe(2);
+
+    scope.aValue = 'ghi';
+    destroyWatch();
+    scope.$digest();
+    expect(scope.counter).toBe(2);
+  });
+  
+  // Title: 在$digest过程中 destroy一个$watch
+  // detail: 在watchFn 里面去 destroy 这个 watch (splice 会改变iterating Array)
+  // fix: unshift 配合 forEachRight 遍历
+  it('allows destroying a $watch during digest', function() {
+    scope.aValue = 'abc';
+
+    var watchCalls = [];
+
+    scope.$watch(
+      function(scope) {
+        watchCalls.push('first');
+        return scope.aValue;
+      }
+    );
+
+    var destroyWatch = scope.$watch(
+      function(scope) {
+        watchCalls.push('second');
+        destroyWatch();
+      }
+    );
+
+    scope.$watch(
+      function() {
+        watchCalls.push('third');
+        return scope.aValue;
+      }
+    );
+
+    scope.$digest();
+    expect(watchCalls).toEqual(['first', 'second', 'third', 'first', 'third']);
+  });
+
+  // 在digest 过程中 一个 watcher 去 destroy 另一个 watcher
+  // 在 watch retrun function 中 也要 initialize lastDirtyWatcher
+  it('allows a $watch to destroy another during digest', function() {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) {
+        return scope.aValue;
+      },
+      function(newValue, oldValue, scope) {
+        destroyWatch();
+      }
+    );
+
+    var destroyWatch = scope.$watch(
+      function(scope) {},
+      function(newValue, oldValue, scope) {}
+    );
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+  });
+});
+
+/* 
+              ============================================
+                              Chapter 2
+                            Scope Method
+              ============================================
+*/
+
+// $eval 接受一个function作为参数
+// 把scope作为这个函数的第一个参数
+// $eval 的第二个参数 作为这个函数的第一个参数
+describe('$eval', function(){
+  var scope;
+
+  beforeEach(function() {
+    scope = new Scope();
+  });
+
+  // 调用 $eval 测试返回值
+  it('excutes $evaled function and returns result', function() {
+    scope.aValue = 42;
+
+    var result = scope.$eval(function(scope) {
+      return scope.aValue;
+    });
+
+    expect(result).toBe(42);
+  })
+
+  // $eval 的第二个参数 作为传入 function 的第二个参数
+  it('passes the second $eval argument straight through', function() {
+    scope.aValue = 42;
+
+    var result = scope.$eval(function(scope, arg) {
+      return scope.aValue + arg
+    }, 2);
+
+    expect(result).toBe(44);
+  })
+})
+
+// $apply: integrate 第三方库 的标准方法
+describe('$apply', function() {
+  var scope;
+
+  beforeEach(function() {
+    scope = new Scope();
+  });
+
+  it('executes the given function and starts the digest', function() {
+    scope.aValue = 'someValue';
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) {
+        return scope.aValue;
+      },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+    
+    scope.$digest();
+    expect(scope.counter).toBe(1);
+
+    scope.$apply(function(scope) {
+      scope.aValue = 'someOtherVale';
+    });
+    expect(scope.counter).toBe(2);
+  })
+})
+
+describe('$evalAsync', function() {
+  var scope;
+  beforeEach(function(){
+    scope = new Scope();
+  });
+
+  it('executes given function later in the same cycle', function() {
+    scope.aValue = [1, 2, 3];
+    scope.asyncEvaluated = false;
+    scope.asyncEvaluatedImmediately = false;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.$evalAsync(function(scope) {
+          scope.asyncEvaluated = true;
+        })
+        scope.asyncEvaluatedImmediately = scope.asyncEvaluated;
+      }
+    );
+
+    scope.$digest();
+    expect(scope.asyncEvaluated).toBe(true);
+    expect(scope.asyncEvaluatedImmediately).toBe(false);
+  });
+
+  it('executes $evalAsynced functions add by watch functions', function() {
+    scope.aValue = [1, 2, 3];
+    scope.asyncEvaluated = false;
+
+    scope.$watch(
+      function(scope) {
+        if (!scope.asyncEvaluated) {
+          scope.$evalAsync(function(scope) {
+            scope.asyncEvaluated = true;
+          });
+        }
+        return scope.aValue;
+      },
+      function(newValue, oldValue, scope) {}
+    );
+
+    scope.$digest();
+    expect(scope.asyncEvaluated).toBe(true);
+  });
+
+  it('execute $evalAsynced functions even when not dirty', function() {
+    scope.aValue = [1, 2, 3];
+    scope.asyncEvaluatedTimes = 0;
+
+    scope.$watch(
+      function(scope) {
+        if (scope.asyncEvaluatedTimes < 2) {
+          scope.$evalAsync(function(scope) {
+            scope.asyncEvaluatedTimes++;
+          })
+        }
+        return scope.aValue;
+      },
+      function(newValue, oldValue, scope) {}
+    )
+    scope.$digest();
+    expect(scope.asyncEvaluatedTimes).toBe(2)
+  })
+
+  it('eventually halts $evalAsyncs added by watches', function() {
+    scope.aValue = [1, 2, 3];
+
+    scope.$watch(
+      function(scope) {
+        scope.$evalAsync(function(scope) {});
+        return scope.aValue;
+      },
+      function(newValue, oldValue, scope) {}
+    );
+
+    expect(function() { scope.$digest(); }).toThrow();
+  })
 });
