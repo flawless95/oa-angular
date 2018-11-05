@@ -6,6 +6,12 @@ describe('Scope', function() {
     var scope = new Scope();
   });
 });
+/* 
+              ============================================
+                                Chapter 1 
+                        dirty-check $watch $digest
+              ============================================
+*/
 
 describe('digest', function() {
   var scope;
@@ -369,3 +375,43 @@ describe('digest', function() {
     expect(scope.counter).toBe(1);
   });
 });
+
+/* 
+              ============================================
+                              Chapter 2
+                            Scope Method
+              ============================================
+*/
+
+// $eval 接受一个function作为参数
+// 把scope作为这个函数的第一个参数
+// $eval 的第二个参数 作为这个函数的第一个参数
+describe('$eval', function(){
+  var scope;
+
+  beforeEach(function() {
+    scope = new Scope();
+  });
+
+  // 调用 $eval 测试返回值
+  it('excutes $evaled function and returns result', function() {
+    scope.aValue = 42;
+
+    var result = scope.$eval(function(scope) {
+      return scope.aValue;
+    });
+
+    expect(result).toBe(42);
+  })
+
+  // $eval 的第二个参数 作为传入 function 的第二个参数
+  it('passes the second $eval argument straight through', function() {
+    scope.aValue = 42;
+
+    var result = scope.$eval(function(scope, arg) {
+      return scope.aValue + arg
+    }, 2);
+
+    expect(result).toBe(44);
+  })
+})
