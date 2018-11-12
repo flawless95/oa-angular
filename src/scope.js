@@ -11,6 +11,8 @@ function Scope() {
   this.$$phase = null;
 
   this.$$applyAsyncQueue = [];
+
+  this.$$applyAsyncId = null;
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
@@ -75,6 +77,11 @@ Scope.prototype.$digest = function() {
   var dirty;
   this.$$lastDirtyWatch = null;
   this.$beginPhase('$digest');
+
+  if (this.$$applyAsyncId) {
+    clearTimeout(this.$$applyAsyncId);
+    this.$$flushApplyAsync();
+  }
   do {
     while (this.$$asyncQueue.length){
       var asyncTask = this.$$asyncQueue.shift();
@@ -117,22 +124,36 @@ Scope.prototype.$evalAsync = function(expr) {
   this.$$asyncQueue.push({scope: this, expression: expr})
 };
 
-scope.prototype.$beginPhase = function(phase) {
+Scope.prototype.$beginPhase = function(phase) {
   if (this.$$phase) {
     throw this.$$phase + 'already in progress';
   }
   this.$$phase = phase;
 };
 
-scope.prototype.$clearPhase = function() {
+Scope.prototype.$clearPhase = function() {
   this.$$phase = null;
 };
 
-scope.prototype.$applyAsync = function(expr) {
+Scope.prototype.$$flushApplyAsync = function() {
+  while (this.$$applyAsyncQueue.length) {
+    this.$$applyAsyncQueue.shift()();
+  }
+  this.$$applyAsyncId = null;
+};
+
+Scope.prototype.$applyAsync = function(expr) {
   var self = this;
   self.$$applyAsyncQueue.push(function() {
     self.$eval(expr);
   });
+  
+  // 类似 debounce 在 digest 也要处理一下 如果调用了等待中applyAsyncId, clear 
+  if (self.$$applyAsyncId === null) {   // 防止多个applyAsync调用， 会调用多次 apply
+    self.$$applyAsyncId = setTimeout(function() {
+      self.$apply(_.bind(self.$$flushApplyAsync, self));
+    }, 0);
+  }
 };
 
 module.exports = Scope;
