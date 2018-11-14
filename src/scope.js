@@ -13,6 +13,8 @@ function Scope() {
   this.$$applyAsyncQueue = [];
 
   this.$$applyAsyncId = null;
+
+  this.$$postDigestQueue = [];
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
@@ -84,8 +86,10 @@ Scope.prototype.$digest = function() {
   }
   do {
     while (this.$$asyncQueue.length){
-      var asyncTask = this.$$asyncQueue.shift();
-      asyncTask.scope.$eval(asyncTask.expression);
+      try {
+        var asyncTask = this.$$asyncQueue.shift();
+        asyncTask.scope.$eval(asyncTask.expression);
+      } catch (error) {}
     }
     dirty = this.$$digestOnce();
     if ((dirty || this.$$asyncQueue.length) && !(ttl--)){
@@ -94,14 +98,18 @@ Scope.prototype.$digest = function() {
     }
   } while(dirty || this.$$asyncQueue.length);
   this.$clearPhase();
+
+  while(this.$$postDigestQueue.length) {
+    try {
+      this.$$postDigestQueue.shift()();
+    } catch (error) {};
+  };
 };
 
-// 费这么大劲添加$eval 目的是 实现scope调用
 Scope.prototype.$eval = function(expr, locals) {
   return expr(this, locals);
 };
 
-// $apply 可以让外部的方法也可以获取并操作scope
 Scope.prototype.$apply = function(expr) {
   try {
     this.$beginPhase('$apply');
@@ -137,8 +145,10 @@ Scope.prototype.$clearPhase = function() {
 
 Scope.prototype.$$flushApplyAsync = function() {
   while (this.$$applyAsyncQueue.length) {
-    this.$$applyAsyncQueue.shift()();
-  }
+    try {
+      this.$$applyAsyncQueue.shift()();
+    } catch (error) {};
+  };
   this.$$applyAsyncId = null;
 };
 
@@ -148,12 +158,39 @@ Scope.prototype.$applyAsync = function(expr) {
     self.$eval(expr);
   });
   
-  // 类似 debounce 在 digest 也要处理一下 如果调用了等待中applyAsyncId, clear 
+  // 类似 throttle 在 digest 也要处理一下 如果调用了等待中applyAsyncId, clear 
   if (self.$$applyAsyncId === null) {   // 防止多个applyAsync调用， 会调用多次 apply
     self.$$applyAsyncId = setTimeout(function() {
       self.$apply(_.bind(self.$$flushApplyAsync, self));
     }, 0);
   }
+};
+
+Scope.prototype.$$postDigest = function(fn) {
+  this.$$postDigestQueue.push(fn);
+};
+
+Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
+  var self = this;
+  var newValues = new Array(watchFns.length);
+  var oldValues = new Array(watchFns.length);
+  var changeReactionScheduled = false;
+
+  function watchGroupListener() {
+    listenerFn(newValues, oldValues, self);
+    changeReactionScheduled = false;
+  }
+
+  _.forEach(watchFns, function(watchFn, i) {
+    self.$watch(watchFn, function(newValue, oldValue) {
+      newValues[i] = newValue;
+      oldValues[i] = oldValue;
+      if(!changeReactionScheduled) {
+        changeReactionScheduled = true;
+        self.$evalAsync(watchGroupListener);
+      }
+    });
+  })
 };
 
 module.exports = Scope;
