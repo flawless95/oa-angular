@@ -13,6 +13,8 @@ function Scope() {
   this.$$applyAsyncQueue = [];
 
   this.$$applyAsyncId = null;
+
+  this.$$postDigestQueue = [];
 }
   // to fix an issue, if newValue === undefined, it will not access follow code
 function initWatchVal() {}
@@ -94,6 +96,10 @@ Scope.prototype.$digest = function() {
     }
   } while(dirty || this.$$asyncQueue.length);
   this.$clearPhase();
+
+  while(this.$$postDigestQueue.length) {
+    this.$$postDigestQueue.shift()();
+  };
 };
 
 // 费这么大劲添加$eval 目的是 实现scope调用
@@ -155,5 +161,10 @@ Scope.prototype.$applyAsync = function(expr) {
     }, 0);
   }
 };
+
+Scope.prototype.$$postDigest = function(fn) {
+  this.$$postDigestQueue.push(fn);
+};
+
 
 module.exports = Scope;
