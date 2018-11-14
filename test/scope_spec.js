@@ -570,6 +570,27 @@ describe('$evalAsync', function() {
       done();
     }, 50);
   });
+
+  it('catches exceptions in $evalAsync', function(done) {
+    scope.aValue = 'abc';
+    scope.counter = 0;
+
+    scope.$watch(
+      function(scope) { return scope.aValue; },
+      function(newValue, oldValue, scope) {
+        scope.counter++;
+      }
+    );
+
+    scope.$evalAsync(function() {
+      throw 'Error';
+    });
+
+    setTimeout(function() {
+      expect(scope.counter).toBe(1);
+      done();
+    }, 50);
+  });
 });
 // 当多次调用 $apply 的时候，会有性能问题
 // applyAsync 会延迟执行apply
@@ -674,6 +695,23 @@ describe('$applyAsync', function() {
       done();
     }, 50);
   });
+
+  it('catch exceptions in $applyAsync', function(done) {
+    scope.$applyAsync(function(scope) {
+      throw 'Error';
+    });
+    scope.$applyAsync(function(scope) {
+      throw 'Error';
+    });
+    scope.$applyAsync(function(scope) {
+      scope.applid = true;
+    });
+
+    setTimeout(function() {
+      expect(scope.applid).toBe(true);
+      done();
+    }, 50);
+  });
 });
 
 // $$postDigest
@@ -702,7 +740,7 @@ describe('postDigest', function() {
     scope.aValue = 'original value';
 
     scope.$$postDigest(function() {
-      scope.aValue = 'change value'
+      scope.aValue = 'changed value'
     });
 
     scope.$watch(
@@ -715,5 +753,20 @@ describe('postDigest', function() {
 
     scope.$digest();
     expect(scope.watchedValue).toBe('changed value');
+  });
+
+  it('catches exceptions in $postDigest', function() {
+    var didRun = false;
+
+    scope.$$postDigest(function() {
+      throw 'Error';
+    });
+
+    scope.$$postDigest(function() {
+      didRun = true;
+    });
+
+    scope.$digest();
+    expect(didRun).toBe(true);
   });
 });

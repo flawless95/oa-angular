@@ -86,8 +86,10 @@ Scope.prototype.$digest = function() {
   }
   do {
     while (this.$$asyncQueue.length){
-      var asyncTask = this.$$asyncQueue.shift();
-      asyncTask.scope.$eval(asyncTask.expression);
+      try {
+        var asyncTask = this.$$asyncQueue.shift();
+        asyncTask.scope.$eval(asyncTask.expression);
+      } catch (error) {}
     }
     dirty = this.$$digestOnce();
     if ((dirty || this.$$asyncQueue.length) && !(ttl--)){
@@ -98,16 +100,16 @@ Scope.prototype.$digest = function() {
   this.$clearPhase();
 
   while(this.$$postDigestQueue.length) {
-    this.$$postDigestQueue.shift()();
+    try {
+      this.$$postDigestQueue.shift()();
+    } catch (error) {};
   };
 };
 
-// 费这么大劲添加$eval 目的是 实现scope调用
 Scope.prototype.$eval = function(expr, locals) {
   return expr(this, locals);
 };
 
-// $apply 可以让外部的方法也可以获取并操作scope
 Scope.prototype.$apply = function(expr) {
   try {
     this.$beginPhase('$apply');
@@ -143,8 +145,10 @@ Scope.prototype.$clearPhase = function() {
 
 Scope.prototype.$$flushApplyAsync = function() {
   while (this.$$applyAsyncQueue.length) {
-    this.$$applyAsyncQueue.shift()();
-  }
+    try {
+      this.$$applyAsyncQueue.shift()();
+    } catch (error) {};
+  };
   this.$$applyAsyncId = null;
 };
 
