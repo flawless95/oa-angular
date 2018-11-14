@@ -770,3 +770,48 @@ describe('postDigest', function() {
     expect(didRun).toBe(true);
   });
 });
+
+describe('$watchGroup', function() {
+  var scope;
+  beforeEach(function() {
+    scope = new Scope();
+  });
+  // 把 watches 作为一个数组， 并且 用数组调用 listener
+  it('take watches as an array and calls listener with arrays', function() {
+    var gotNewValues, gotOldValues;
+
+    scope.aValue = 1;
+    scope.anotherValue = 2;
+
+    scope.$watchGroup([
+      function(scope) { return scope.aValue; },
+      function(scope) { return scope.anotherValue; }
+    ], function(newValue, oldValue, scope) {
+      gotNewValues = newValue;
+      gotOldValues = oldValue;
+    });
+
+    scope.$digest();
+
+    expect(gotNewValues).toEqual([1, 2]);
+    expect(gotOldValues).toEqual([1, 2]);
+  });
+
+  it('only calls listener once per digest', function() {
+    var counter = 0;
+
+    scope.aValue = 1;
+    scope.anotherValue = 2;
+
+    scope.$watchGroup([
+      function(scope) { return scope.aValue; },
+      function(scope) { return scope.anotherValue; }
+    ], function(newValue, oldValue, scope) {
+      counter++;
+    });
+
+    scope.$digest();
+
+    expect(counter).toBe(1);
+  });
+});
