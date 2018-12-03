@@ -1019,6 +1019,10 @@ describe('Scope', function() {
       expect(parent.user.name).toBe('Jill');
     })
 
-
+    it('does not digest its parent(s)', function() {
+      var parent = new Scope();
+      var child = parent.$new();
+      
+    })
   });
 });
