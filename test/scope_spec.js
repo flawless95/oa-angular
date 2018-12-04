@@ -904,7 +904,7 @@ describe('Scope', function() {
   /* 
                 ============================================
                                 Chapter 3
-                              Scope Inheritance
+                            Scope Inheritance
                 ============================================
   */
 
@@ -1206,5 +1206,73 @@ describe('Scope', function() {
       parent.$digest();
       expect(child.didPostDigest).toBe(true);
     });
+
+    it('excutes $applyAsync functions on isolated scopes', function() {
+      var parent = new Scope();
+      var child = parent.$new(true);
+      var applied = false;
+
+      parent.$applyAsync(function() {
+        applied = true;
+      })
+      child.$digest();
+      expect(applied).toBe(true);
+    });
+
+    it('can take some other scope as parent', function() {
+      var prototypeParent = new Scope();
+      var hierarchyParent = new Scope();
+      var child = prototypeParent.$new(false, hierarchyParent);
+
+      prototypeParent.a = 42;
+      expect(child.a).toBe(42);
+
+      child.counter = 0;
+      child.$watch(function(scope) {
+        scope.counter++;
+      });
+
+      prototypeParent.$digest();
+      expect(child.counter).toBe(0);
+
+      hierarchyParent.$digest();
+      expect(child.counter).toBe(2);
+    });
+
+    it('is no longer digested when $destroy has benn called', function() {
+      var parent = new Scope();
+      var child = parent.$new();
+
+      child.aValue = [1, 2, 3];
+      child.counter = 0;
+      child.$watch(
+        function(scope) { return scope.aValue; },
+        function(newValue, oldValue, scope) {
+          scope.counter++;
+        },
+        true
+      );
+      parent.$digest();
+      expect(child.counter).toBe(1);
+
+      child.aValue.push(4);
+      parent.$digest();
+      expect(child.counter).toBe(2);
+
+      child.$destroy();
+      child.aValue.push(5);
+      parent.$digest();
+      expect(child.counter).toBe(2);
+    });
   });
+
+
+    /* 
+                ============================================
+                                Chapter 4
+                          Watching Collections
+                ============================================
+  */
+
+
 });
