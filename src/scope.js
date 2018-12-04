@@ -92,8 +92,8 @@ Scope.prototype.$digest = function() {
   this.$root.$$lastDirtyWatch = null;
   this.$beginPhase('$digest');
 
-  if (this.$$applyAsyncId) {
-    clearTimeout(this.$$applyAsyncId);
+  if (this.$root.$$applyAsyncId) {
+    clearTimeout(this.$root.$$applyAsyncId);
     this.$$flushApplyAsync();
   }
   do {
@@ -161,7 +161,7 @@ Scope.prototype.$$flushApplyAsync = function() {
       this.$$applyAsyncQueue.shift()();
     } catch (error) {};
   };
-  this.$$applyAsyncId = null;
+  this.$root.$$applyAsyncId = null;
 };
 
 Scope.prototype.$applyAsync = function(expr) {
@@ -171,8 +171,8 @@ Scope.prototype.$applyAsync = function(expr) {
   });
   
   // 类似 throttle 在 digest 也要处理一下 如果调用了等待中applyAsyncId, clear 
-  if (self.$$applyAsyncId === null) {   // 防止多个applyAsync调用， 会调用多次 apply
-    self.$$applyAsyncId = setTimeout(function() {
+  if (self.$root.$$applyAsyncId === null) {   // 防止多个applyAsync调用， 会调用多次 apply
+    self.$root.$$applyAsyncId = setTimeout(function() {
       self.$apply(_.bind(self.$$flushApplyAsync, self));
     }, 0);
   }
@@ -231,21 +231,24 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
   }
 };
 
-Scope.prototype.$new = function(isolated) {
+Scope.prototype.$new = function(isolated, parent) {
   var child;
+  parent = parent || this;
   if (isolated) {
     child = new Scope();
-    child.$root = this.$root;
-    child.$$asyncQueue = this.$$asyncQueue;
-    child.$$postDigestQueue = this.$$postDigestQueue;
+    child.$root = parent.$root;
+    child.$$asyncQueue = parent.$$asyncQueue;
+    child.$$postDigestQueue = parent.$$postDigestQueue;
+    child.$$applyAsyncQueue = parent.$$applyAsyncQueue;
   } else {
     var ChildScope = function() {};
     ChildScope.prototype = this;
     var child = new ChildScope();
   }
-  this.$$children.push(child);
+  parent.$$children.push(child);
   child.$$watchers = [];
   child.$$children = [];
+  child.$parent = parent;
   return child;
 };
 
@@ -257,5 +260,16 @@ Scope.prototype.$$everyScope = function(fn) {
   } else {
     return false;
   }
+};
+
+Scope.prototype.$destroy = function() {
+  if (this.$parent) {
+    var siblings = this.$parent.$$children;
+    var indexOfThis = siblings.indexOf(this);
+    if(indexOfThis >= 0) {
+      siblings.splice(indexOfThis, 1);
+    }
+  }
+  this.$$watchers = null;
 };
 module.exports = Scope;
