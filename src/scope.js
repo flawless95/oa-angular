@@ -1,5 +1,14 @@
 var _ = require('lodash');
 
+function isArrayLike(obj) {
+  if (_.isNull(obj) || _.isUndefined(obj)) {
+    return false
+  }
+  var length = obj.length;
+  if (length !== length) return false;
+  return _.isNumber(length);
+}
+
 function Scope() {
   // store all watchers that have been regitered
   this.$$watchers = [];
