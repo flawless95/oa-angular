@@ -1644,4 +1644,13 @@ describe('Scope', function() {
       expect(oldValueGiven).toEqual({a: 1, b: 2});
      });
   });
+
+  /* 
+                ============================================
+                                Chapter 5
+                              Scope  Events
+                ============================================
+  */
+
+  
 });
